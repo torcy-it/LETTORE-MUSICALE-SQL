@@ -1,7 +1,7 @@
 CREATE TYPE FasciaOraria AS ENUM ('Mattina','Pomeriggio','Sera','Notte');
-CREATE TYPE TipoUtente AS ENUM ('Ascoltatore','artista');
+CREATE TYPE TipoUtente AS ENUM ('ascoltatore','artista');
 CREATE TYPE TipoTraccia AS ENUM ('Originale','Remastering','Cover');
-CREATE EXTENSION PGCRYPTO;
+/*CREATE EXTENSION PGCRYPTO;*/
 
 
 
@@ -34,8 +34,8 @@ CREATE TABLE UTENTE
 	Cognome VARCHAR(50) ,
 	DataNascita DATE ,
 	Email VARCHAR(100) UNIQUE NOT NULL,
-	DataIscrizione DATE NULL,				/* da verificare */
-	T_Utente TIPOUTENTE DEFAULT 'Ascoltatore',
+	DataIscrizione DATE DEFAULT current_date,		
+	T_Utente TIPOUTENTE DEFAULT 'ascoltatore',
 
 	CONSTRAINT pk_utente primary key ( utenteid ),
 
@@ -45,6 +45,8 @@ CREATE TABLE UTENTE
 	CONSTRAINT check_correctBirthUtente
 		CHECK ( DataNascita < current_date )
 );
+
+
 /* aggiungere trigger che prima di inserire la tupla in utente metta la data di iscrizione con current date*/
 
 /* 
@@ -146,7 +148,7 @@ CREATE TABLE TRACCIA
  	ON DELETE CASCADE,
 	
 	
-	constraint check_LegalFormatVersione check ( Versione ~* '^(0[1-9]|1[0-9]|2[0-9]|3[0-1])(\/|-)(0[1-9]|1[0-2])(\/|-)([0-9]{4})$') ,
+	constraint check_LegalFormatVersione check ( Versione ~* '^(0[1-9]|1[0-9]|2[0-9]|3[0-1])(\/|-|:)(0[1-9]|1[0-2])(\/|-|:)([0-9]{4})$') ,
 	
 	CONSTRAINT check_durataTraccia 
 		CHECK ( Durata < '01:00:00' AND Durata > '00:01:00' )	
@@ -298,27 +300,6 @@ $totalfollowing$
 	END;
 $totalfollowing$ LANGUAGE plpgsql;
 
-/*decrittografa la l'utente esaminato*/
-CREATE OR REPLACE FUNCTION decrittografia( utentemail VARCHAR(1000) , password varchar (50))
-RETURNS VARCHAR(1000) AS 
-$decripto$
-	declare 
-	
-	decripted varchar (1000);
-	
-	BEGIN
-		if password = 'admin'
-		then 
-			decripted = ( select key_password
-							FROM utente 
-							WHERE Email = utentemail);
-			
-			return ( select convert_from (decrypt(decripted::bytea, 'salty', 'aes'), 'SQL_ASCII') ) ;
-		else
-			raise EXCEPTION using message = 'Non hai diritto, per vedere password altrui';
-		end if;
-	END
-$decripto$ LANGUAGE plpgsql;
 
 
 /*funzione utilizzata nel vincolo check_permission aiuta il check a capire se l'untente che ha inserito una traccia o album è un artista*/
@@ -343,7 +324,7 @@ $checkPermissionAlbum$ LANGUAGE plpgsql;
 
 /* trigger con procedure */
 
-/* procedura per il trigger insertPassword, prima dell'inserimento di un utente cripta la password scelta dall'utente */
+/* procedura per il trigger insertPassword, prima dell'inserimento di un utente cripta la password scelta dall'utente 
 CREATE OR REPLACE FUNCTION Crittografia()
 RETURNS trigger AS
 $cripto$
@@ -357,14 +338,42 @@ $cripto$
 
 $cripto$ LANGUAGE plpgsql;
 
-/*trigger che viene attivato prima dell'inserimento di un utente*/ 
-CREATE TRIGGER insertPassword before INSERT ON utente
+/*trigger che viene attivato prima dell'inserimento di un utente
+CREATE or replace TRIGGER insertPassword before INSERT ON utente
  	
 FOR EACH ROW
 	
 EXECUTE PROCEDURE Crittografia();
 
- 
+/*trigger che viene attivato prima dell'update di un utente
+CREATE  TRIGGER updatePassword before update ON utente
+ 	
+FOR EACH ROW
+	
+EXECUTE PROCEDURE Crittografia();
+/*decrittografa la l'utente esaminato
+CREATE OR REPLACE FUNCTION decrittografia( utentemail VARCHAR(1000) , managerPassword varchar (50))
+RETURNS VARCHAR(1000) AS 
+$decripto$
+	declare 
+	
+	decripted varchar (1000);
+	
+	BEGIN
+		if password = 'admin'
+		then 
+			decripted = ( select key_password
+							FROM utente 
+							WHERE Email = utentemail);
+			
+			return ( select convert_from (decrypt(decripted::bytea, 'salty', 'aes'), 'SQL_ASCII') ) ;
+		else
+			raise EXCEPTION using message = 'Non hai diritto, per vedere password altrui';
+		end if;
+	END
+$decripto$ LANGUAGE plpgsql;
+*/
+
 /* procedura per il trigger insertRemasterSong, dopo l'inserimento di un utente modifica codT_originale in traccia */
 create or replace FUNCTION aggiornaCodT_originaleTraccia()
 returns trigger as 
@@ -425,8 +434,8 @@ VALUES
 	('Mina','Mina','Anna Maria','Mazzini','25/03/1940','26/08/2002','DrinDrin@outlook.com','artista'),
 	('MinaCelentano','MinaCelentano','','','14/05/1998','26/08/2002','CooolTogheter@live.it','artista'),
 	('Adriano Celentano','Adriano','Adriano','Celentano','06/01/1938','20/04/2022','Gluck17@hotmail.com','artista'),
-	('Francesca_pgl','Francesca_pgl','Francesca', 'Pugliese','01/01/1996','20/04/2022','F.pugliese@studenti.unina.it','Ascoltatore'),
-	('Torci','Torci','Adolfo', 'Torcicollo','13/03/1999','20/04/2022','a.torcicollo@studenti.unina.it','Ascoltatore');
+	('Francesca_pgl','Francesca_pgl','Francesca', 'Pugliese','01/01/1996','20/04/2022','F.pugliese@studenti.unina.it','ascoltatore'),
+	('Torci','Torci','Adolfo', 'Torcicollo','13/03/1999','20/04/2022','a.torcicollo@studenti.unina.it','ascoltatore');
 
 
 
@@ -544,7 +553,7 @@ VALUES
 
 
 /*popolamento tabella ascolti */
-insert into ascolti ( Ascoltatoreid, Ora, tracciaid, albumid, versione, artistaid)
+insert into ascolti ( ascoltatoreid, Ora, tracciaid, albumid, versione, artistaid)
 values 
 	('Francesca_pgl','Mattina','10','2','24/04/2020','THESCOTTS'),
 	('Francesca_pgl','Sera','70','16','01/01/1997','Mina'),
@@ -573,6 +582,9 @@ values
 /*tabella followers*/
 insert into followers ( utente1 , utente2 ) 
 values 
+	('Travis Scott','Nomadi'),
+	('Francesca_pgl','Travis Scott'),
+	('Travis Scott','Gino Paoli'),
 	('Torci','Kid Cudi'),
 	('Torci','Travis Scott'),
 	('Torci','THESCOTTS'),
@@ -607,8 +619,8 @@ INSERT INTO UTENTE ( UtenteID, Key_Password, nome, Cognome, DataNascita, DataIsc
 VALUES
 	('Squallor','Squallor','','','01/01/1969','20/04/2022','Squallor@gmail.com','artista'),
 	('THESCOTTS','THESCOTTS','','','24/04/2020','20/04/2022','ThOOTS@gmail.com','artista'),
-	('Torci','THESCOTTS','','','24/04/2020','20/04/2022','The@gmail.com','Ascoltatore'),
-	('Giovanni','THESCOTTS','','','24/04/2020','20/04/2022','TheSCO@gmail.com','Ascoltatore');
+	('Torci','THESCOTTS','','','24/04/2020','20/04/2022','The@gmail.com','ascoltatore'),
+	('Giovanni','THESCOTTS','','','24/04/2020','20/04/2022','TheSCO@gmail.com','ascoltatore');
 
 INSERT INTO ALBUM (albumid, Titolo , ColoreCopertina, Casa_discografica, artistaid )
 VALUES 
