@@ -238,6 +238,21 @@ begin
 end
 $$ language plpgsql;
 
+create or replace function traccePiuAscoltateByArtista ( )
+returns table ( ascoltatore varchar , titoloTraccia varchar , versioneTraccia varchar , numeroascolti bigint)as 
+$$
+
+begin
+	return query SELECT tracciaid1.artistaid, tracciaid1.titolo, ascolti.versione, COUNT(*) as nAscolti
+				 FROM ascolti inner join (select traccia.artistaid, traccia.titolo, traccia.tracciaid, traccia.versione
+										  from traccia ) as tracciaid1
+				on ascolti.tracciaid = tracciaid1.tracciaid and ascolti.versione = tracciaid1.versione
+				GROUP BY tracciaid1.artistaid, tracciaid1.titolo, ascolti.versione
+				order by nAscolti desc;
+
+end
+$$ language plpgsql;
+
 /* funzione specifica che mi ritorna gli album piu ascoltati differenzando per utenti*/
 create or replace function albumPiuAscoltati ( )
 returns table ( ascoltatore varchar, titoloAlbum varchar , album int , numeroAscolti bigint ) as
